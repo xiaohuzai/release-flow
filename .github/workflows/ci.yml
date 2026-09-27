@@ -1,0 +1,107 @@
+# 共享 CI（workflow_call）：调用方薄壳只声明 job name（= ruleset 必需检查名）
+# 与可选 skip_paths。设计与历史教训见 release-flow/README.md。
+name: CI
+
+on:
+  workflow_call:
+    inputs:
+      skip_paths:
+        description: '改动范围正则：命中任一改动文件才跑测试；留空=总是跑'
+        type: string
+        required: false
+        default: ''
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # 完整历史：skip_paths 的 git diff 判断改动范围需要
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      # 零依赖仓也带 lockfile（约定）——cache:npm 依赖它存在
+      - name: Install dependencies
+        run: npm ci
+
+      # 只在 skip_paths 命中（或未配置）时才验证；否则跳过以省时间。
+      # 注意：job 本身始终运行并给出结论——main ruleset 把 job name 设为必需
+      # 检查，整体跳过 job 会让必需检查无结论，PR 合不了。
+      - name: Detect source changes
+        id: changes
+        env:
+          # 输入走 env 传递，不拼进 run 脚本（模板注入风险——pi-feishu 旧教训）
+          SKIP_PATHS: ${{ inputs.skip_paths }}
+        run: |
+          if [ -n "$SKIP_PATHS" ]; then
+            if [ "${{ github.event_name }}" = "pull_request" ]; then
+              BASE="${{ github.event.pull_request.base.sha }}"
+            else
+              BASE="${{ github.event.before }}"
+            fi
+            CHANGED=$(git diff --name-only "$BASE" "${{ github.sha }}" 2>/dev/null || echo "")
+            if echo "$CHANGED" | grep -qE "$SKIP_PATHS"; then
+              echo "source_changed=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "source_changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "source_changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # ── 验证结果按内容树复用（同树同环境 = 结果可转移）────────────────
+      # 缓存键用树哈希而非 commit SHA：squash/merge 换 SHA 不换树，重复触发
+      # 不重复跑全量；revert 回旧内容也能命中最初记录。键带 OS/Node 前缀。
+      # 只缓存最贵的测试套件；npm ci / typecheck / check-compat 现场跑。
+      # 注意（实测 2026-09-27）：GitHub 缓存按分支隔离——PR run 存的记录对
+      # base 分支不可见，PR→合并 push main 仍各跑一次；push main 这次把记录
+      # 铺到 main 作用域，发版的验证门靠它免重复全量。
+      - name: Compute tree hash
+        id: tree
+        run: echo "hash=$(git rev-parse 'HEAD^{tree}')" >> "$GITHUB_OUTPUT"
+
+      - name: Lookup previous verify result
+        id: verifycache
+        continue-on-error: true # 缓存服务抖动时降级为现场全量跑，不阻塞合并
+        uses: actions/cache/restore@v4
+        with:
+          path: .verify-pass
+          key: verify-${{ runner.os }}-node20-${{ steps.tree.outputs.hash }}
+          lookup-only: true
+
+      - name: Reuse verify result
+        if: steps.changes.outputs.source_changed == 'true' && steps.verifycache.outputs.cache-hit == 'true'
+        run: echo "::notice::测试结果复用自同树同环境的既有记录（tree ${{ steps.tree.outputs.hash }}）——语义=这份内容在本环境完整验证过一次"
+
+      - name: Typecheck
+        if: steps.changes.outputs.source_changed == 'true' && steps.verifycache.outputs.cache-hit != 'true'
+        run: npm run typecheck --if-present
+
+      - name: Test
+        if: steps.changes.outputs.source_changed == 'true' && steps.verifycache.outputs.cache-hit != 'true'
+        run: npm test
+
+      - name: Compat check
+        if: steps.changes.outputs.source_changed == 'true'
+        run: npm run check-compat --if-present
+
+      - name: Record verify result
+        if: steps.changes.outputs.source_changed == 'true' && steps.verifycache.outputs.cache-hit != 'true' && success()
+        run: echo "passed by ${{ github.sha }} at $(date -u +%FT%TZ)" > .verify-pass
+
+      - name: Save verify result
+        if: steps.changes.outputs.source_changed == 'true' && steps.verifycache.outputs.cache-hit != 'true' && success()
+        continue-on-error: true # 存不下（额度满/服务抖动）不影响绿灯
+        uses: actions/cache/save@v4
+        with:
+          path: .verify-pass
+          key: verify-${{ runner.os }}-node20-${{ steps.tree.outputs.hash }}
