@@ -32,7 +32,9 @@ into conventions instead of a per-repo copy.
   the anti-recursion policy)
 - Idempotent self-healing: a re-run where the tag + release already exist still
   completes the version bump PR as usual (an empty diff means the version already
-  reached main, so the PR is closed to wrap up)
+  reached main, so the PR is closed to wrap up); when the version already reached
+  main with a feature PR (release/vX is 0 commits over main), PR creation is
+  skipped and the step wraps up instead of failing
 
 ## Per-repo thin shells
 
