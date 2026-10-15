@@ -19,7 +19,8 @@ per-repo 只留薄壳配置。设计目标：**一处证实、处处生效**；�
 - PAT 双模式：`secrets.RELEASE_PAT` 已配 → bump 带 `[skip ci]` + PAT 建 PR + `--admin`
   直合（版本 PR 零测试零批准）；未配 → 回落 CI + 管理员批准一次（GITHUB_TOKEN 建的 PR
   其 CI 停在 action_required，防递归策略）
-- 幂等自愈：tag+release 已在的重跑照常补齐版本号 PR（空差异=版本号已进 main 则关闭收尾）
+- 幂等自愈：tag+release 已在的重跑照常补齐版本号 PR（空差异=版本号已进 main 则关闭收尾）；
+  版本号已随功能 PR 先进 main 时 release/vX 领先 main 0 提交，建 PR 前即跳过收尾（不假红）
 
 ## 各仓薄壳
 

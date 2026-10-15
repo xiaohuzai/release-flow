@@ -250,6 +250,15 @@ jobs:
               echo "Version bump PR already merged, nothing to do."
               exit 0
             fi
+            # 零差异守卫（2026-10-15 agent-bridge v0.9.0 真发翻车）：版本号已随
+            # 功能 PR 先进 main（如手动 bump 后合入）时 release/vX 领先 main 0 个
+            # 提交，gh pr create 会 GraphQL 报 "No commits between…" exit 1 把整个
+            # run 标红——而发布本身早已完成。此情况无事可做，直接收尾。
+            git fetch origin main "$RELEASE_BRANCH" --quiet
+            if [ "$(git rev-list --count "origin/main..origin/$RELEASE_BRANCH")" = "0" ]; then
+              echo "Version already aligned on main — $RELEASE_BRANCH has no commits over main, no version PR needed."
+              exit 0
+            fi
             PR_URL=$(gh pr create --base main --head "$RELEASE_BRANCH" \
               --title "chore: release v$VERSION" \
               --body "发版流程自动创建：把版本号文件对齐到已发布的 v$VERSION。仅版本号变更的 PR 由流程自动合并，无需人工处理。") \
