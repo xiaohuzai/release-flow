@@ -10,6 +10,11 @@ on:
         type: string
         required: false
         default: ''
+      node_version:
+        description: '测试用 Node 大版本；默认 22（undici 8 加载期就要 zlib zstd，Node 22.15 才有——依赖链带 undici 的仓在 20 上模块即崩）'
+        type: string
+        required: false
+        default: '22'
 
 jobs:
   test:
@@ -26,7 +31,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ inputs.node_version }}
           cache: 'npm'
 
       # 零依赖仓也带 lockfile（约定）——cache:npm 依赖它存在
@@ -75,7 +80,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .verify-pass
-          key: verify-${{ runner.os }}-node20-${{ steps.tree.outputs.hash }}
+          key: verify-${{ runner.os }}-node${{ inputs.node_version }}-${{ steps.tree.outputs.hash }}
           lookup-only: true
 
       - name: Reuse verify result
@@ -104,4 +109,4 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: .verify-pass
-          key: verify-${{ runner.os }}-node20-${{ steps.tree.outputs.hash }}
+          key: verify-${{ runner.os }}-node${{ inputs.node_version }}-${{ steps.tree.outputs.hash }}

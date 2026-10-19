@@ -22,7 +22,14 @@ into conventions instead of a per-repo copy.
   than npm's `latest` are rejected)
 - Verification is unified: `npm test` + `npm run typecheck --if-present` +
   `npm run check-compat --if-present`, reused by content-tree hash (`.verify-pass` /
-  `verify-<os>-node20-<treehash>`; PRs and releases share the same cache space)
+  `verify-<os>-node<version>-<treehash>`; PRs and releases share the same cache space)
+- Test Node defaults to **22** (both workflows, `node_version` input to override; ci.yml
+  and release.yml must stay equal or their verify caches never hit). Why not 20: Node 20
+  is EOL (2026-04), and undici 8 (pulled by jsdom/cheerio dev deps) dereferences
+  `zlib.createZstdDecompress` at module load — that API only exists from Node 22.15, so
+  any dep chain carrying undici 8 crashes on import under 20 (real outage: browsa CI +
+  release red 2026-10-17→19, four jsdom/cheerio test files, while Node 22 dev box stayed
+  green). Pass `node_version: 20` only if a repo's tree provably predates undici 8.
 - Version bump PR safety valve: the diff may only touch `package.json` /
   `package-lock.json` / `manifest.json`
 - PAT dual mode: when `secrets.RELEASE_PAT` is configured → the bump commit carries
