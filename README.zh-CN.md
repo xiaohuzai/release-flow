@@ -53,13 +53,14 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  id-token: write
 jobs:
   release:
     uses: xiaohuzai/release-flow/.github/workflows/release.yml@v1
     with:
       version: ${{ inputs.version }}
       skip_paths: ''              # 可选，同 ci.yml
-    secrets: inherit              # RELEASE_PAT / NPM_TOKEN
+    secrets: inherit              # RELEASE_PAT
 ```
 
 ## 仓库侧一次性配置（ruleset / settings）
@@ -68,7 +69,9 @@ jobs:
   （PAT 模式 `--admin` 直合所需）
 - Settings → Actions → Workflow permissions：勾选 **Allow GitHub Actions to create and
   approve pull requests** + **Allow auto-merge**（无 PAT 兜底路径所需）
-- secret `RELEASE_PAT`（可选，免测免批直通）、`NPM_TOKEN`（npm 发布仓）
+- secret `RELEASE_PAT`（可选，免测免批直通）
+- npm 发布仓：在 npmjs.com 配置 Trusted Publisher（owner/repo，workflow
+  `release.yml`，允许 `npm publish`）；不再需要 `NPM_TOKEN`
 
 ## 升级
 
