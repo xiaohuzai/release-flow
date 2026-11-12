@@ -23,6 +23,10 @@ jobs:
   release:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -128,11 +132,13 @@ jobs:
         if: steps.ver.outputs.kind == 'zip'
         run: npm run package
 
+      - name: Upgrade npm for trusted publishing
+        if: steps.ver.outputs.kind == 'npm' && steps.ver.outputs.exists_on_npm != 'true'
+        run: npm install -g npm@11
+
       - name: Publish to npm
         if: steps.ver.outputs.kind == 'npm' && steps.ver.outputs.exists_on_npm != 'true'
         run: npm publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Commit version bump + push tag
         id: bump

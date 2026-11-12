@@ -74,13 +74,14 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  id-token: write
 jobs:
   release:
     uses: xiaohuzai/release-flow/.github/workflows/release.yml@v1
     with:
       version: ${{ inputs.version }}
       skip_paths: ''              # optional, same as ci.yml
-    secrets: inherit              # RELEASE_PAT / NPM_TOKEN
+    secrets: inherit              # RELEASE_PAT
 ```
 
 ## One-time repo-side configuration (ruleset / settings)
@@ -89,8 +90,9 @@ jobs:
   **Repository admin bypass** (required for PAT-mode `--admin` direct merges)
 - Settings → Actions → Workflow permissions: check **Allow GitHub Actions to create and
   approve pull requests** + **Allow auto-merge** (required by the no-PAT fallback path)
-- Secrets: `RELEASE_PAT` (optional; the test-free, approval-free fast lane) and
-  `NPM_TOKEN` (for npm-publishing repos)
+- Secrets: `RELEASE_PAT` (optional; the test-free, approval-free fast lane)
+- npm-publishing repos: add a Trusted Publisher on npmjs.com (owner/repo, workflow
+  `release.yml`, allow `npm publish`); no `NPM_TOKEN` secret is needed
 
 ## Upgrading
 
